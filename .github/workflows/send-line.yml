@@ -1,0 +1,48 @@
+name: Send News to LINE
+
+on:
+  push:
+    paths:
+      - 'news.json'
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read news and send to LINE
+        env:
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: |
+          python3 - <<'EOF'
+          import json, urllib.request, os
+
+          with open("news.json", encoding="utf-8") as f:
+              articles = json.load(f)
+
+          lines = ["📰 台北市政府每日新聞\n"]
+          for i, a in enumerate(articles, 1):
+              lines.append(f"{i}. {a['title']}")
+              lines.append(f"   {a['summary']}")
+              lines.append(f"   🔗 {a['url']}\n")
+
+          message = "\n".join(lines)
+
+          payload = json.dumps({
+              "to": os.environ["LINE_USER_ID"],
+              "messages": [{"type": "text", "text": message}]
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              "https://api.line.me/v2/bot/message/push",
+              data=payload,
+              headers={
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {os.environ['LINE_CHANNEL_TOKEN']}"
+              }
+          )
+          with urllib.request.urlopen(req) as res:
+              print(res.status, res.read().decode())
+          EOF
